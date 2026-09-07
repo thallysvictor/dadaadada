@@ -295,6 +295,10 @@
     min-height: 2px;
   }
   .bar-chart .bar-col.empty .bar { background: rgba(255,255,255,0.08); }
+  .bar-chart .bar-col:not(.empty) { cursor: pointer; }
+  .bar-chart .bar-col:not(.empty):hover .bar { background: linear-gradient(180deg, #FFFFFF, #9A9CA5); }
+  .bar-chart .bar-col.selected .bar { background: linear-gradient(180deg, #4ADE80, #16A34A); }
+  .bar-chart .bar-col.selected .bar-day { color: var(--ink); font-weight: 700; }
   .bar-chart .bar-day {
     font-size: 9px;
     color: var(--ink-soft);
@@ -411,7 +415,9 @@
   table.ledger tbody tr:last-child td { border-bottom: none; }
   table.ledger tbody tr:hover { background: rgba(255,255,255,0.03); }
   td.num { text-align: right; font-weight: 600; color: var(--green); white-space: nowrap; }
-  td.date { color: var(--ink-soft); white-space: nowrap; width: 100px; font-size: 13.5px; }
+  td.date { color: var(--ink-soft); white-space: nowrap; width: 100px; font-size: 13.5px; cursor: pointer; }
+  td.date:hover { color: var(--ink); text-decoration: underline; }
+  tr[data-id].day-selected td { background: rgba(74,222,128,0.07); }
   td.cat { color: var(--ink-soft); font-size: 12.5px; }
   .cat-pill {
     display: inline-block;
@@ -655,6 +661,7 @@
   <div class="toolbar">
     <h2>Lançamentos</h2>
     <div class="toolbar-actions">
+      <span id="dayFilterChip" style="display:none;"></span>
       <select id="monthFilter"></select>
       <button class="ghost-btn" id="exportBtn" title="Baixar um arquivo com todos os ganhos">Exportar backup</button>
       <button class="ghost-btn" id="importBtn" title="Carregar ganhos de um arquivo de backup">Importar backup</button>
@@ -705,6 +712,7 @@
 const STORAGE_KEY = 'ganhos-entries';
 let entries = [];
 let currentFilter = 'all';
+let dayFilter = null; // 'YYYY-MM-DD' quando o usuário clica num dia do gráfico
 
 const fmtMoney = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -994,15 +1002,40 @@ function renderDayChart() {
   for (let d = 1; d <= daysInMonth; d++) {
     const val = totalsByDay[d];
     const pct = val > 0 ? Math.max((val / max) * 100, 4) : 0;
+    const dateStr = `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const col = document.createElement('div');
-    col.className = 'bar-col' + (val === 0 ? ' empty' : '');
+    col.className = 'bar-col' + (val === 0 ? ' empty' : '') + (dayFilter === dateStr ? ' selected' : '');
     const showLabel = (d === 1 || d % 5 === 0 || d === daysInMonth);
     col.innerHTML = `
       <div class="bar" style="height:${val > 0 ? pct : 2}%" title="Dia ${d}: ${fmtMoney(val)}"></div>
       <div class="bar-day">${showLabel ? d : ''}</div>
     `;
+    if (val > 0) {
+      col.addEventListener('click', () => {
+        dayFilter = (dayFilter === dateStr) ? null : dateStr;
+        render();
+      });
+    }
     chart.appendChild(col);
   }
+}
+
+function renderDayFilterChip() {
+  const chip = document.getElementById('dayFilterChip');
+  if (!dayFilter) { chip.style.display = 'none'; chip.innerHTML = ''; return; }
+  const dateLabel = new Date(dayFilter + 'T00:00:00').toLocaleDateString('pt-BR');
+  chip.style.display = 'inline-flex';
+  chip.style.alignItems = 'center';
+  chip.style.gap = '6px';
+  chip.style.fontSize = '12.5px';
+  chip.style.fontWeight = '600';
+  chip.style.color = 'var(--ink)';
+  chip.style.background = 'rgba(74,222,128,0.12)';
+  chip.style.border = '1px solid rgba(74,222,128,0.35)';
+  chip.style.padding = '7px 10px';
+  chip.style.borderRadius = '8px';
+  chip.innerHTML = `Dia ${dateLabel} <button id="clearDayFilter" style="background:none;border:none;color:var(--ink);cursor:pointer;font-size:13px;line-height:1;">✕</button>`;
+  document.getElementById('clearDayFilter').addEventListener('click', () => { dayFilter = null; render(); });
 }
 
 function renderMonthChart() {
@@ -1050,13 +1083,21 @@ function render() {
   renderBestMonthCard();
   renderDayChart();
   renderMonthChart();
+  renderDayFilterChip();
 
   const tbody = document.getElementById('tbody');
   let list = entries.slice().sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  if (currentFilter !== 'all') list = list.filter(e => monthKey(e.date) === currentFilter);
+  if (dayFilter) {
+    list = list.filter(e => e.date === dayFilter);
+  } else if (currentFilter !== 'all') {
+    list = list.filter(e => monthKey(e.date) === currentFilter);
+  }
 
   if (list.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Nenhum lançamento ainda. Adicione o primeiro ganho abaixo.</td></tr>';
+    const msg = dayFilter
+      ? `Nenhum lançamento em ${new Date(dayFilter + 'T00:00:00').toLocaleDateString('pt-BR')}.`
+      : 'Nenhum lançamento ainda. Adicione o primeiro ganho abaixo.';
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="5">${msg}</td></tr>`;
     return;
   }
 
@@ -1066,7 +1107,7 @@ function render() {
     tr.dataset.id = entry.id;
     const dateLabel = new Date(entry.date + 'T00:00:00').toLocaleDateString('pt-BR');
     tr.innerHTML = `
-      <td class="date">${dateLabel}</td>
+      <td class="date" title="Clique para ver só este dia">${dateLabel}</td>
       <td class="desc">${escapeHtml(entry.desc || '—')}</td>
       <td class="cat">${entry.category ? `<span class="cat-pill">${escapeHtml(entry.category)}</span>` : ''}</td>
       <td class="num">${fmtMoney(entry.amount)}</td>
@@ -1221,13 +1262,19 @@ document.getElementById('importFile').addEventListener('change', (e) => {
 
 document.getElementById('addBtn').addEventListener('click', addEntry);
 document.getElementById('newValue').addEventListener('keydown', (e) => { if (e.key === 'Enter') addEntry(); });
-document.getElementById('monthFilter').addEventListener('change', (e) => { currentFilter = e.target.value; render(); });
+document.getElementById('monthFilter').addEventListener('change', (e) => { currentFilter = e.target.value; dayFilter = null; render(); });
 
 document.getElementById('tbody').addEventListener('click', (e) => {
   const tr = e.target.closest('tr');
   if (!tr || !tr.dataset.id) return;
   if (e.target.classList.contains('edit-btn')) startEdit(tr.dataset.id);
   if (e.target.classList.contains('del-btn')) askDelete(tr.dataset.id);
+  if (e.target.classList.contains('date')) {
+    const entry = entries.find(en => en.id === tr.dataset.id);
+    if (!entry) return;
+    dayFilter = (dayFilter === entry.date) ? null : entry.date;
+    render();
+  }
 });
 
 (async function init() {
