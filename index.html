@@ -671,7 +671,8 @@
   <div class="toolbar">
     <h2>Lançamentos</h2>
     <div class="toolbar-actions">
-      <input type="date" id="dayFilterInput" title="Escolher um dia específico">
+      <label for="dayFilterInput" style="font-size:12px;color:var(--ink-soft);white-space:nowrap;">Filtrar por dia:</label>
+      <input type="date" id="dayFilterInput" title="Escolher um dia específico para filtrar os lançamentos">
       <span id="dayFilterChip" style="display:none;"></span>
       <select id="monthFilter"></select>
       <button class="ghost-btn" id="exportBtn" title="Baixar um arquivo com todos os ganhos">Exportar backup</button>
@@ -739,6 +740,26 @@ const todayISO = () => {
 };
 
 document.getElementById('newDate').value = todayISO();
+let autoSetDate = todayISO();
+
+// Se a pessoa deixar a aba aberta virando o dia, o campo de data do
+// formulário de "Adicionar" se atualiza sozinho pro novo dia — mas só
+// se ela não tiver escolhido manualmente outra data (pra lançar algo
+// retroativo, por exemplo).
+function refreshNewDateIfStale() {
+  const nowISO = todayISO();
+  if (nowISO === autoSetDate) return;
+  const input = document.getElementById('newDate');
+  if (input.value === autoSetDate) {
+    input.value = nowISO;
+  }
+  autoSetDate = nowISO;
+}
+window.addEventListener('focus', refreshNewDateIfStale);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshNewDateIfStale();
+});
+setInterval(refreshNewDateIfStale, 60000);
 
 function setStatus(msg, isError) {
   const el = document.getElementById('statusMsg');
@@ -1214,6 +1235,7 @@ async function addEntry() {
   document.getElementById('newCat').value = '';
   document.getElementById('newValue').value = '';
   document.getElementById('newDate').value = todayISO();
+  autoSetDate = todayISO();
 
   render();
   setStatus('Ganho adicionado.');
@@ -1278,6 +1300,9 @@ document.getElementById('addBtn').addEventListener('click', addEntry);
 document.getElementById('newValue').addEventListener('keydown', (e) => { if (e.key === 'Enter') addEntry(); });
 document.getElementById('monthFilter').addEventListener('change', (e) => { currentFilter = e.target.value; dayFilter = null; render(); });
 document.getElementById('dayFilterInput').addEventListener('change', (e) => { dayFilter = e.target.value || null; render(); });
+document.getElementById('newDate').addEventListener('change', (e) => {
+  if (e.target.value) { dayFilter = e.target.value; render(); }
+});
 
 document.getElementById('tbody').addEventListener('click', (e) => {
   const tr = e.target.closest('tr');
@@ -1294,6 +1319,7 @@ document.getElementById('tbody').addEventListener('click', (e) => {
 
 (async function init() {
   await loadEntries();
+  dayFilter = todayISO(); // já abre filtrado no dia de hoje
   render();
 })();
 </script>
