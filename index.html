@@ -383,6 +383,16 @@
     background: #241143;
     color: #F4F0FB;
   }
+  input#dayFilterInput {
+    font-family: 'Public Sans', sans-serif;
+    font-size: 13.5px;
+    color: var(--ink);
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    padding: 7px 12px;
+    border-radius: 8px;
+  }
+  input#dayFilterInput::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.7); }
 
   .ledger-card {
     background: var(--glass);
@@ -661,6 +671,7 @@
   <div class="toolbar">
     <h2>Lançamentos</h2>
     <div class="toolbar-actions">
+      <input type="date" id="dayFilterInput" title="Escolher um dia específico">
       <span id="dayFilterChip" style="display:none;"></span>
       <select id="monthFilter"></select>
       <button class="ghost-btn" id="exportBtn" title="Baixar um arquivo com todos os ganhos">Exportar backup</button>
@@ -977,7 +988,7 @@ function renderDayChart() {
   const label = document.getElementById('dayPanelMonth');
   const chart = document.getElementById('dayChart');
 
-  const refMonth = currentFilter !== 'all' ? currentFilter : todayISO().slice(0,7);
+  const refMonth = dayFilter ? monthKey(dayFilter) : (currentFilter !== 'all' ? currentFilter : todayISO().slice(0,7));
   const [y, mo] = refMonth.split('-').map(Number);
   const daysInMonth = new Date(y, mo, 0).getDate();
 
@@ -1021,6 +1032,9 @@ function renderDayChart() {
 }
 
 function renderDayFilterChip() {
+  const input = document.getElementById('dayFilterInput');
+  if (input.value !== (dayFilter || '')) input.value = dayFilter || '';
+
   const chip = document.getElementById('dayFilterChip');
   if (!dayFilter) { chip.style.display = 'none'; chip.innerHTML = ''; return; }
   const dateLabel = new Date(dayFilter + 'T00:00:00').toLocaleDateString('pt-BR');
@@ -1263,6 +1277,7 @@ document.getElementById('importFile').addEventListener('change', (e) => {
 document.getElementById('addBtn').addEventListener('click', addEntry);
 document.getElementById('newValue').addEventListener('keydown', (e) => { if (e.key === 'Enter') addEntry(); });
 document.getElementById('monthFilter').addEventListener('change', (e) => { currentFilter = e.target.value; dayFilter = null; render(); });
+document.getElementById('dayFilterInput').addEventListener('change', (e) => { dayFilter = e.target.value || null; render(); });
 
 document.getElementById('tbody').addEventListener('click', (e) => {
   const tr = e.target.closest('tr');
