@@ -707,7 +707,17 @@ let entries = [];
 let currentFilter = 'all';
 
 const fmtMoney = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const todayISO = () => new Date().toISOString().slice(0,10);
+
+// CORRIGIDO: antes usava new Date().toISOString(), que converte para UTC
+// e podia mostrar o dia seguinte à noite (fuso de Fortaleza é UTC-3).
+// Agora usa os componentes de data locais do navegador do usuário.
+const todayISO = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 document.getElementById('newDate').value = todayISO();
 
